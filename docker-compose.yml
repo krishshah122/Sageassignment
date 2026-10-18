@@ -43,7 +43,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/order_supervisor
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/order_supervisor
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: default
       TEMPORAL_TASK_QUEUE: order-supervisor
@@ -90,6 +90,18 @@ services:
     ports:
       - "3000:3000"
     restart: on-failure
+
+  ragas-eval:
+    profiles: ["evaluation"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.eval
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
+      RAGAS_MODEL: ${RAGAS_MODEL:-groq/openai/gpt-oss-20b}
+    volumes:
+      - ./backend/evals/results:/srv/evals/results
 
 volumes:
   postgres_data:

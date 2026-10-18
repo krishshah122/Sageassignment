@@ -2,6 +2,10 @@
 
 POC for a long-running Temporal AI supervisor per order. See [sagedoc.txt](sagedoc.txt), [proj.md](proj.md), and [ARCHITECTURE.md](ARCHITECTURE.md).
 
+For the complete setup, synthetic walkthrough, expected results, and troubleshooting steps, see [help.md](help.md).
+
+For a detailed explanation of orders, Temporal workflows, the worker, the AI agent, and simulated tools, see [worker-and-order.md](worker-and-order.md).
+
 ## Current milestone
 
 The backend runs a Groq-backed agent on workflow start, important order events, and scheduled wakes. The agent can update compact run memory and execute simulated tools; outcomes, errors, and final summaries are stored in the run timeline/database.
@@ -16,11 +20,16 @@ The operator console supports supervisor setup, run creation/monitoring, event a
 
 ### Run infrastructure and worker
 
-```bash
-cp .env.example .env
-# Edit .env and set GROQ_API_KEY to your key
+Create or edit `.env` in the repository root and set `GROQ_API_KEY` to your Groq key. The default model is `openai/gpt-oss-20b`; set `GROQ_MODEL` in `.env` to override it. Keep `.env` private and do not commit it.
+
+On Windows PowerShell, disable Compose Bake for this first build to avoid a Docker Desktop image-export collision when the API and worker build from the same backend Dockerfile:
+
+```powershell
+$env:COMPOSE_BAKE = "false"
 docker compose up --build
 ```
+
+On other shells, `docker compose up --build` is sufficient. Keep the terminal running while using the app; press `Ctrl+C` to stop the services.
 
 - Temporal gRPC: `localhost:7233`
 - Temporal UI: `http://localhost:8080`
@@ -34,7 +43,17 @@ Order context, event payloads, timeline entries, and supervisor/run instructions
 
 Runs use the supervisor's optional default wake-up interval, or `DEFAULT_WAKEUP_SECONDS` (30 by default). Payment failures, shipment delays, refund requests, and customer messages invoke the agent immediately; routine events are recorded without resetting the timer. Timer wakes invoke the agent, too.
 
-Tools are intentionally **mocked**: customer messages, internal notes, escalations, and review flags report simulated results and do not contact real systems. `schedule_next_wakeup` controls the durable Temporal timer; `close_workflow` and a delivered event cause the agent to produce final output.
+The supervisor can enable only three simulated tools: customer message, internal note, and mark for human review. They only record simulated results; they do not contact real systems. Timer scheduling is controlled by the agent's `next_wakeup_seconds` decision field, not an extra tool. A delivered event starts finalization.
+
+### Agent and system evaluation
+
+The normal backend suite checks request validation, mocked tool behavior, API controls, Temporal signals/timers, and the complete synthetic workflow using a fake model response. To score real Groq responses against the synthetic references with RAGAS, add `RAGAS_MODEL=groq/openai/gpt-oss-20b` to the private root `.env` if using another evaluator model, then run:
+
+```powershell
+docker compose --profile evaluation run --build --rm ragas-eval
+```
+
+This optional evaluation calls Groq for three synthetic agent scenarios and makes additional Groq calls for RAGAS judging. It reports factual correctness, faithfulness (grounding in supplied evidence), response relevance, and instruction adherence. It is not part of startup or ordinary tests and may consume API quota. Timestamped JSON and CSV scores are written under `backend/evals/results/` and are git-ignored. Use synthetic data only. These scores evaluate agent responses; the existing automated integration tests verify end-to-end workflow mechanics.
 
 ### Implemented API
 
