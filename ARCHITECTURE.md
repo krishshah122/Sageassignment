@@ -15,7 +15,7 @@ Four processes, one database. No extra microservices, Redis, or message buses. T
 | Component | Responsibility | Boundary |
 | --- | --- | --- |
 | **web** (Next.js App Router + Tailwind) | Operator UI: supervisors, run list/detail, event injector, extra instructions, pause/resume/interrupt/terminate. No business logic beyond HTTP calls and rendering. | Talks only to FastAPI `/api/*`. |
-| **api** (FastAPI) | HTTP for supervisors and runs. Persist reads/writes to PostgreSQL. Start workflows and send signals/control via Temporal client. Seed a hardcoded default supervisor template on startup. | Does not call Groq. Does not run agent loops. |
+| **api** (FastAPI) | HTTP for supervisors and runs. Persist reads/writes to PostgreSQL. Start workflows and send signals/control via Temporal client. | Does not call Groq. Does not run agent loops. |
 | **worker** (Temporal Python worker) | Hosts `OrderSupervisorWorkflow` and activities. Sleep/wake, classifier, agent, tools, compaction, finalization. | Activities talk to Postgres and Groq. Workflow code stays deterministic (no I/O). |
 | **postgres** | Source of truth for supervisors, runs, timeline, memory, actions, final output. | Accessed by **api** and **worker** activities only. |
 | **temporal** | Durable workflow state, signals, timers. | Used by **api** (client) and **worker**. |
@@ -59,9 +59,9 @@ Typical run:
 1. Operator creates supervisor (or uses seeded template) → row in `supervisors`.
 2. Operator starts a run → FastAPI inserts `runs` (`status=starting`) → `client.start_workflow(workflow_id=run_id)` → workflow runs start trigger → `run_agent` activity → persist timeline/memory → workflow `wait_condition` on signal **or** timer.
 3. Operator injects event → FastAPI inserts timeline event (or activity does) → signal `event` → classifier → wake main agent **or** stay asleep.
-4. Extra instruction → signal `instruction` → stored on run; next agent call includes it. **Assumption:** instruction does not force a wake unless interrupt is used (reversible).
-5. Pause → signal `pause`; workflow records events but skips agent until `resume`.
-6. Interrupt → signal `interrupt`; main agent runs now (unless paused — **assumption:** interrupt while paused is ignored until resume, or we allow interrupt to imply resume; prefer “interrupt wakes only if not paused”).
+4. Extra instruction → append to the run's durable context and timeline; the next agent invocation reads it. Adding instructions does not force an immediate wake.
+5. Pause → signal `pause`; the workflow records events but defers new inference while paused. An already-running agent activity is allowed to finish. Resume restores pending urgent events/interrupts; an elapsed timer can also wake immediately after resume.
+6. Interrupt → signal `interrupt`; the main agent runs immediately when not paused, or after resume if paused.
 7. Terminal (`delivered`, `close_workflow` tool, or terminate) → final agent step (except hard terminate) → `status` terminal → workflow return.
 
 ---
@@ -225,7 +225,7 @@ Allowed `type` values: the FR-10 list. Unknown types: `400` (or accept as `unkno
 
 Control: `POST .../pause|resume|interrupt|terminate` with empty body `{}`. Response: updated run summary.
 
-Next.js may call FastAPI directly (`NEXT_PUBLIC_API_URL`) or rewrite `/api` in next.config. **Assumption:** Next.js rewrite to FastAPI so the browser uses same origin. Reversible.
+The Next.js server rewrites `/api/*` to `API_URL`, keeping API traffic same-origin from the browser. Local development defaults to `http://localhost:8000`; Compose sets `http://api:8000`. The Groq key is not exposed to the web container.
 
 ---
 
@@ -405,12 +405,18 @@ No shared package, no Nx, no extra apps.
 
 ## Implemented foundation
 
-The current implementation is the backend persistence/API milestone, not the complete target design:
+The current implementation is the backend API, workflow, and agent foundation, not the complete target design:
 
-- FastAPI provides supervisor create/list/detail and run create/list/detail endpoints.
+- FastAPI provides supervisor create/list/detail, run create/list/detail, instruction, event, and run-control endpoints.
 - SQLAlchemy models cover supervisors, runs, timeline entries, run memory, and final output. PostgreSQL tables are created when the API starts; schema migrations are not yet configured.
 - Creating a run starts `OrderSupervisorWorkflow` using the run UUID as its Temporal workflow ID.
-- Event injection signals the workflow. The worker persists event timeline entries, and `delivered` marks the run completed.
+- Event injection signals the workflow. The worker persists event entries; payment failures, shipment delays, refund requests, and customer messages invoke the agent immediately, while routine events leave the scheduled wake unchanged.
+- The workflow invokes one Groq-backed agent activity on start, important event, and timer wake. It passes memory and recent timeline context, validates the JSON decision, and persists updated memory and tool results.
+- Six local mocked tools handle customer message, internal note, escalation, review flag, schedule wake-up, and close workflow. They never call external commerce or messaging systems.
+- The workflow schedules durable Temporal timers using a supervisor's wake interval or `DEFAULT_WAKEUP_SECONDS`; sleep state, wake times, and trigger causes are persisted.
+- Run-specific instructions are persisted and included in the next agent context. Pause defers inference while continuing to persist incoming events; resume releases pending urgent events or interrupts. Terminate hard-stops the Temporal workflow without finalization.
+- A delivered event or close-workflow tool causes final output (summary, actions, learnings, and feedback) to be persisted.
+- Provider, missing-key, and invalid-response failures are stored as timeline errors after bounded activity retries; the workflow remains open to retry at a later wake.
 - The existing `NoopWorkflow` remains registered as a Temporal wiring check.
 
-The order workflow currently waits for events. It does not yet run an agent, classify wake importance, schedule wake-ups, compact memory, produce final output, or implement run controls. Those remain follow-on work before the assignment acceptance criteria are met.
+The LLM key is passed only to the worker using `GROQ_API_KEY`; the configurable model defaults to `openai/gpt-oss-20b`. Tools are deliberately simulations. Database migrations and live Docker/Groq verification remain incomplete.

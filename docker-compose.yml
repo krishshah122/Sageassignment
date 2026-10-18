@@ -47,6 +47,9 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: default
       TEMPORAL_TASK_QUEUE: order-supervisor
+      DEFAULT_WAKEUP_SECONDS: ${DEFAULT_WAKEUP_SECONDS:-30}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,6 +67,7 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: default
       TEMPORAL_TASK_QUEUE: order-supervisor
+      DEFAULT_WAKEUP_SECONDS: ${DEFAULT_WAKEUP_SECONDS:-30}
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,6 +75,20 @@ services:
         condition: service_started
     ports:
       - "8000:8000"
+    restart: on-failure
+
+  web:
+    build:
+      context: ./web
+      args:
+        API_URL: http://api:8000
+    environment:
+      API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "3000:3000"
     restart: on-failure
 
 volumes:
