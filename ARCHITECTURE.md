@@ -400,3 +400,17 @@ No shared package, no Nx, no extra apps.
 
 - Next.js App Router, Tailwind, FastAPI, Temporal Python SDK, PostgreSQL.
 - Signal-driven events, three inference triggers, mocked tools, no auth.
+
+---
+
+## Implemented foundation
+
+The current implementation is the backend persistence/API milestone, not the complete target design:
+
+- FastAPI provides supervisor create/list/detail and run create/list/detail endpoints.
+- SQLAlchemy models cover supervisors, runs, timeline entries, run memory, and final output. PostgreSQL tables are created when the API starts; schema migrations are not yet configured.
+- Creating a run starts `OrderSupervisorWorkflow` using the run UUID as its Temporal workflow ID.
+- Event injection signals the workflow. The worker persists event timeline entries, and `delivered` marks the run completed.
+- The existing `NoopWorkflow` remains registered as a Temporal wiring check.
+
+The order workflow currently waits for events. It does not yet run an agent, classify wake importance, schedule wake-ups, compact memory, produce final output, or implement run controls. Those remain follow-on work before the assignment acceptance criteria are met.

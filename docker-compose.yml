@@ -48,8 +48,10 @@ services:
       TEMPORAL_NAMESPACE: default
       TEMPORAL_TASK_QUEUE: order-supervisor
     depends_on:
-      - postgres
-      - temporal
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
     restart: on-failure
 
   api:
@@ -63,8 +65,10 @@ services:
       TEMPORAL_NAMESPACE: default
       TEMPORAL_TASK_QUEUE: order-supervisor
     depends_on:
-      - postgres
-      - temporal
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
     ports:
       - "8000:8000"
     restart: on-failure
