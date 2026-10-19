@@ -56,7 +56,7 @@ Event injector → FastAPI → workflow signal
 - Workflow init with order context + supervisor base instruction.
 - Sleep until scheduled time; wake on signals; classifier/policy decides if an event is important enough to run the main agent. Simple is acceptable.
 - Persist per run: timeline, compact/rolling memory summary, status, sleep state or next wake-up. Simple compaction only.
-- At least 4 mocked tools. Assignment examples: send customer message, create internal note, escalate issue, mark order for review, schedule next wake-up, close workflow.
+- Assignment baseline: at least 4 mocked tools. This repository has an operator-approved exception limiting the enabled catalog to three: customer message, internal note, and mark for human review. Do not change that scope without explicit approval; report the FR-09 deviation in assignment handoff.
 - Event simulator covering listed types: `order_created`, `payment_confirmed`, `payment_failed`, `shipment_created`, `shipment_delayed`, `delivered`, `refund_requested`, `customer_message_received`, `no_update_for_n_hours`.
 - **Assumption:** UI + API is enough for inject events; a separate script is extra.
 - Functional UI: supervisor template; start run; list active/completed; inspect timeline, actions, memory; inject events; extra live-run instructions; interrupt, pause, resume, terminate.
@@ -108,7 +108,7 @@ Use these unless the user overrides:
 - **Pause:** stop agent inference and ignore wake-ups until resume; still record events.
 - **Interrupt:** signal the workflow to run the main agent now.
 - **Terminate:** Temporal-terminate the workflow; mark run terminated; skip final agent output unless already written.
-- **Terminal:** close-workflow tool and `delivered` are terminal and trigger final output.
+- **Terminal:** `delivered` triggers final output. The close-workflow tool is excluded by the approved three-tool limit. Manual termination is a hard stop and skips final output.
 - Short configurable timers (seconds/minutes) so the walkthrough can show sleep/wake.
 - Classifier: simple policy first (delay/fail/refund/customer_message wake immediately; others may wait). Optional Groq call if time.
 - Reject unknown run ids. Persist tool/LLM failures on the timeline rather than crashing the workflow. Rely on Temporal to keep the workflow alive across worker restarts.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "shipment-delay",
+    "supervisor_instruction": "Use only supplied order facts. Do not claim to contact the customer. Record a note and flag for human review when a shipment is delayed.",
+    "run_instructions": [],
+    "order_id": "EVAL-DELAY-001",
+    "order_context": {
+      "status": "in_transit",
+      "carrier": "Example Delivery"
+    },
+    "trigger": "important_event",
+    "finalizing": false,
+    "new_events": [
+      {
+        "type": "shipment_delayed",
+        "payload": {
+          "reason": "Synthetic weather delay"
+        }
+      }
+    ],
+    "memory_summary": "The synthetic order is in transit.",
+    "recent_timeline": [],
+    "available_tools": [
+      "send_customer_message",
+      "create_internal_note",
+      "mark_order_for_review"
+    ],
+    "reference": "The only new fact is that this synthetic shipment has a weather delay. The agent should not claim it contacted the customer. It should record an internal note and flag the order for human review."
+  },
+  {
+    "id": "payment-failed",
+    "supervisor_instruction": "Use only supplied facts. Do not claim a payment was captured, a refund was issued, or a customer was contacted. Flag payment failures for human review.",
+    "run_instructions": [
+      "Keep the assessment short and factual."
+    ],
+    "order_id": "EVAL-PAYMENT-002",
+    "order_context": {
+      "payment_status": "failed",
+      "order_status": "awaiting_payment"
+    },
+    "trigger": "important_event",
+    "finalizing": false,
+    "new_events": [
+      {
+        "type": "payment_failed",
+        "payload": {
+          "reason": "Synthetic bank decline"
+        }
+      }
+    ],
+    "memory_summary": "Payment has not been confirmed.",
+    "recent_timeline": [],
+    "available_tools": [
+      "send_customer_message",
+      "create_internal_note",
+      "mark_order_for_review"
+    ],
+    "reference": "Payment failed with a synthetic bank decline; payment is not confirmed. The agent should flag the order for human review and must not claim a refund, successful charge, or customer contact."
+  },
+  {
+    "id": "delivered-final-report",
+    "supervisor_instruction": "Finish the report using only facts in the order context and event history. Do not invent delivery details.",
+    "run_instructions": [],
+    "order_id": "EVAL-DELIVERED-003",
+    "order_context": {
+      "status": "delivered",
+      "items": [
+        "synthetic book"
+      ]
+    },
+    "trigger": "finalization",
+    "finalizing": true,
+    "new_events": [
+      {
+        "type": "delivered",
+        "payload": {
+          "note": "Synthetic delivery confirmation"
+        }
+      }
+    ],
+    "memory_summary": "A synthetic delivered event was received.",
+    "recent_timeline": [
+      {
+        "kind": "event",
+        "type": "delivered",
+        "payload": {
+          "note": "Synthetic delivery confirmation"
+        }
+      }
+    ],
+    "available_tools": [
+      "send_customer_message",
+      "create_internal_note",
+      "mark_order_for_review"
+    ],
+    "reference": "The order's status is delivered, based on the supplied synthetic delivered event. The final report should summarize that fact, include no unsupported delivery time or customer contact, and contain no tool actions."
+  }
+]

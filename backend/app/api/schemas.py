@@ -1,22 +1,36 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 
 NonBlankString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+AvailableTool = Literal[
+    "send_customer_message",
+    "create_internal_note",
+    "mark_order_for_review",
+]
 
 
 class SupervisorCreate(BaseModel):
     name: NonBlankString
     base_instruction: NonBlankString
-    available_tools: list[NonBlankString] = Field(default_factory=list)
+    available_tools: list[AvailableTool] = Field(default_factory=list, max_length=3)
     default_wakeup_seconds: int | None = Field(default=None, gt=0)
     model: str | None = None
     wake_aggressiveness: str | None = None
+
+    @field_validator("available_tools")
+    @classmethod
+    def available_tools_must_be_unique(
+        cls, value: list[AvailableTool]
+    ) -> list[AvailableTool]:
+        if len(value) != len(set(value)):
+            raise ValueError("available_tools cannot contain duplicates")
+        return value
 
 
 class SupervisorRead(BaseModel):
@@ -88,3 +102,7 @@ class RunList(BaseModel):
 class EventCreate(BaseModel):
     type: NonBlankString
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class InstructionCreate(BaseModel):
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]

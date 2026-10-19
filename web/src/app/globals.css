@@ -1,0 +1,250 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  background: #f4f6f4;
+  color: #1e293b;
+  font-family:
+    Arial, Helvetica, "Segoe UI", system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.panel-card {
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #fff;
+  padding: 1.25rem;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 3%);
+}
+
+@media (min-width: 640px) {
+  .panel-card {
+    padding: 1.5rem;
+  }
+}
+
+.eyebrow {
+  color: #718096;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  line-height: 1rem;
+  text-transform: uppercase;
+}
+
+.form-input {
+  width: 100%;
+  border: 1px solid #dbe2e8;
+  border-radius: 0.65rem;
+  background: #fff;
+  padding: 0.65rem 0.75rem;
+  color: #1e293b;
+  font-size: 0.8125rem;
+  outline: none;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.form-input::placeholder {
+  color: #a0aab6;
+}
+
+.form-input:focus {
+  border-color: #16845c;
+  box-shadow: 0 0 0 3px rgb(22 132 92 / 12%);
+}
+
+.button-primary,
+.button-secondary,
+.button-danger {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.button-primary {
+  border: 1px solid #064e3b;
+  background: #064e3b;
+  color: #fff;
+}
+
+.button-primary:hover:not(:disabled) {
+  border-color: #047857;
+  background: #047857;
+}
+
+.button-secondary {
+  border: 1px solid #dbe2e8;
+  background: #fff;
+  color: #334155;
+}
+
+.button-secondary:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.button-danger {
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: #b91c1c;
+}
+
+.button-danger:hover:not(:disabled) {
+  border-color: #ef4444;
+  background: #fff1f2;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  padding: 0.25rem 0.55rem;
+  color: #475569;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1rem;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: currentcolor;
+}
+
+.status-running,
+.status-starting {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.status-sleeping {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.status-paused {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.status-completed {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.status-terminated,
+.status-failed,
+.status-terminating {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.count-pill {
+  flex: none;
+  border-radius: 999px;
+  background: #f1f5f9;
+  padding: 0.3rem 0.6rem;
+  color: #64748b;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.run-list-item {
+  display: block;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  padding: 0.75rem;
+  text-align: left;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.run-list-item:hover {
+  border-color: #cbd5e1;
+  background: #fff;
+}
+
+.run-list-item-selected {
+  border-color: #a7d7c2;
+  background: #f0fdf4;
+}
+
+.timeline-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-entry {
+  position: relative;
+  display: flex;
+  gap: 0.8rem;
+}
+
+.timeline-entry:not(:last-child)::before {
+  position: absolute;
+  top: 0.55rem;
+  bottom: 0;
+  left: 0.3rem;
+  width: 1px;
+  background: #e2e8f0;
+  content: "";
+}
+
+.timeline-marker {
+  z-index: 1;
+  flex: none;
+  width: 0.65rem;
+  height: 0.65rem;
+  margin-top: 0.25rem;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: #12845a;
+  box-shadow: 0 0 0 1px #a7d7c2;
+}

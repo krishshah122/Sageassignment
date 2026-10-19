@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,6 +12,7 @@ from temporalio.service import RPCError
 
 from app.api.schemas import (
     EventCreate,
+    InstructionCreate,
     RunCreate,
     RunDetail,
     RunFinalOutputRead,
@@ -36,6 +38,7 @@ EVENT_TYPES = {
     "customer_message_received",
     "no_update_for_n_hours",
 }
+TERMINAL_RUN_STATUSES = {"completed", "terminated", "failed", "terminating"}
 
 
 async def _start_workflow(run: Run, supervisor: Supervisor) -> None:
@@ -52,6 +55,11 @@ async def _start_workflow(run: Run, supervisor: Supervisor) -> None:
             available_tools=supervisor.available_tools,
             order_id=run.order_id,
             order_context=run.order_context,
+            default_wakeup_seconds=(
+                supervisor.default_wakeup_seconds
+                if supervisor.default_wakeup_seconds is not None
+                else settings.default_wakeup_seconds
+            ),
         ),
         id=run.temporal_workflow_id,
         task_queue=settings.temporal_task_queue,
@@ -68,6 +76,57 @@ async def _signal_event(run: Run, event: EventCreate) -> None:
     await handle.signal(
         OrderSupervisorWorkflow.order_event,
         event.model_dump(mode="json"),
+    )
+
+
+async def _signal_control(
+    run: Run,
+    control: Literal["pause", "resume", "interrupt"],
+) -> None:
+    settings = load_settings()
+    client = await Client.connect(
+        settings.temporal_address,
+        namespace=settings.temporal_namespace,
+    )
+    handle = client.get_workflow_handle(run.temporal_workflow_id)
+    signals = {
+        "pause": OrderSupervisorWorkflow.pause,
+        "resume": OrderSupervisorWorkflow.resume,
+        "interrupt": OrderSupervisorWorkflow.interrupt,
+    }
+    await handle.signal(signals[control])
+
+
+async def _terminate_workflow(run: Run) -> None:
+    settings = load_settings()
+    client = await Client.connect(
+        settings.temporal_address,
+        namespace=settings.temporal_namespace,
+    )
+    handle = client.get_workflow_handle(run.temporal_workflow_id)
+    await handle.terminate("Terminated by operator")
+
+
+def _require_active_run(run_id: UUID, session: Session) -> Run:
+    run = session.get(Run, run_id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+    if run.status in TERMINAL_RUN_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot control a terminal run",
+        )
+    return run
+
+
+def _record_control_event(run: Run, control: str, session: Session) -> None:
+    session.add(
+        TimelineEntry(
+            run_id=run.id,
+            kind="system",
+            type=f"run_{control}",
+            payload={},
+        )
     )
 
 
@@ -102,8 +161,6 @@ async def create_run(
             detail="Could not start the Temporal workflow",
         ) from exc
 
-    run.status = "running"
-    session.commit()
     session.refresh(run)
     return run
 
@@ -158,7 +215,7 @@ async def inject_event(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     if request.type not in EVENT_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown event type")
-    if run.status not in {"starting", "running", "sleeping"}:
+    if run.status not in {"starting", "running", "sleeping", "paused"}:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot add events to a terminal run",
@@ -173,3 +230,121 @@ async def inject_event(
         ) from exc
 
     return {"status": "accepted"}
+
+
+@router.post("/{run_id}/instructions", response_model=RunSummary)
+def add_instruction(
+    run_id: UUID,
+    request: InstructionCreate,
+    session: Session = Depends(get_db),
+) -> Run:
+    run = _require_active_run(run_id, session)
+    run.extra_instructions = [*run.extra_instructions, request.text]
+    session.add(
+        TimelineEntry(
+            run_id=run.id,
+            kind="system",
+            type="instruction_added",
+            payload={"text": request.text},
+        )
+    )
+    session.commit()
+    session.refresh(run)
+    return run
+
+
+@router.post("/{run_id}/pause", response_model=RunSummary)
+async def pause_run(
+    run_id: UUID,
+    session: Session = Depends(get_db),
+) -> Run:
+    run = _require_active_run(run_id, session)
+    if run.status == "paused":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Run is already paused",
+        )
+    try:
+        await _signal_control(run, "pause")
+    except RPCError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not pause the Temporal workflow",
+        ) from exc
+    run.status = "paused"
+    _record_control_event(run, "paused", session)
+    session.commit()
+    session.refresh(run)
+    return run
+
+
+@router.post("/{run_id}/resume", response_model=RunSummary)
+async def resume_run(
+    run_id: UUID,
+    session: Session = Depends(get_db),
+) -> Run:
+    run = _require_active_run(run_id, session)
+    if run.status != "paused":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Run is not paused",
+        )
+    try:
+        await _signal_control(run, "resume")
+    except RPCError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not resume the Temporal workflow",
+        ) from exc
+    run.status = "running"
+    _record_control_event(run, "resumed", session)
+    session.commit()
+    session.refresh(run)
+    return run
+
+
+@router.post("/{run_id}/interrupt", response_model=RunSummary)
+async def interrupt_run(
+    run_id: UUID,
+    session: Session = Depends(get_db),
+) -> Run:
+    run = _require_active_run(run_id, session)
+    try:
+        await _signal_control(run, "interrupt")
+    except RPCError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not interrupt the Temporal workflow",
+        ) from exc
+    _record_control_event(run, "interrupted", session)
+    session.commit()
+    session.refresh(run)
+    return run
+
+
+@router.post("/{run_id}/terminate", response_model=RunSummary)
+async def terminate_run(
+    run_id: UUID,
+    session: Session = Depends(get_db),
+) -> Run:
+    run = _require_active_run(run_id, session)
+    previous_status = run.status
+    run.status = "terminating"
+    session.commit()
+    try:
+        await _terminate_workflow(run)
+    except RPCError as exc:
+        session.refresh(run)
+        if run.status == "terminating":
+            run.status = previous_status
+            session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not terminate the Temporal workflow",
+        ) from exc
+    run.status = "terminated"
+    run.sleep_until = None
+    _record_control_event(run, "terminated", session)
+    session.commit()
+    session.refresh(run)
+    return run

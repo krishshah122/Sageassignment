@@ -138,7 +138,6 @@ async def run_agent(
         raise ValueError("Final agent response must not include tool actions")
 
     now = datetime.now(timezone.utc)
-    close_requested = False
     scheduled_seconds = decision.next_wakeup_seconds
     action_records: list[tuple[str, dict[str, Any]]] = []
     allowed_tools = set(available_tools)
@@ -147,10 +146,6 @@ async def run_agent(
             if action.name not in allowed_tools:
                 raise ValueError(f"Tool {action.name} is not enabled for this supervisor")
             result = execute_mock_tool(action.name, action.arguments)
-            if action.name == "schedule_next_wakeup":
-                scheduled_seconds = result["result"]["seconds"]
-            if action.name == "close_workflow":
-                close_requested = True
             action_record = {"status": "succeeded", **result}
         except (ValueError, TypeError) as exc:
             action_record = {
@@ -163,7 +158,6 @@ async def run_agent(
 
     outcome = {
         "next_wakeup_seconds": scheduled_seconds,
-        "close_requested": close_requested,
         "completed": finalizing,
     }
     with Session(get_engine()) as session:

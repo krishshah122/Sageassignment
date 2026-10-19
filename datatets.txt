@@ -1,0 +1,16 @@
+{
+  "customer": "Sarah Jenkins",
+  "items": ["Wireless Noise-Canceling Headphones"],
+  "shipping": {
+    "carrier": "ExpressPost",
+    "tracking_number": "EP-98124",
+    "origin": "Austin, TX",
+    "destination": "Seattle, WA"
+  },
+  "priority": "high"
+}
+
+
+
+{"method": "credit_card", "amount": 249.99}
+{"method": "credit_card", "amount": 249.99}

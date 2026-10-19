@@ -390,16 +390,16 @@ No shared package, no Nx, no extra apps.
 - Creating a run starts `OrderSupervisorWorkflow` using the run UUID as its Temporal workflow ID.
 - Event injection signals the workflow. The worker persists event entries; payment failures, shipment delays, refund requests, and customer messages invoke the agent immediately, while routine events leave the scheduled wake unchanged.
 - The workflow invokes one Groq-backed agent activity on start, important event, and timer wake. It passes memory and recent timeline context, requests JSON Schema output, validates the decision locally, and persists updated memory and tool results.
-- Six local mocked tools handle customer message, internal note, escalation, review flag, schedule wake-up, and close workflow. They never call external commerce or messaging systems.
+- Three local mocked tools handle customer message, internal note, and mark-for-human-review. They never call external commerce or messaging systems. Wake timing is a structured agent decision; delivery, not a tool, initiates finalization. This three-tool limit follows the operator's request and intentionally differs from `sagedoc.txt`'s four-tool minimum.
 - The workflow schedules durable Temporal timers using a supervisor's wake interval or `DEFAULT_WAKEUP_SECONDS`; sleep state, wake times, and trigger causes are persisted.
 - Run-specific instructions are persisted and included in the next agent context. Pause defers inference while continuing to persist incoming events; resume releases pending urgent events or interrupts. Terminate hard-stops the Temporal workflow without finalization.
-- A delivered event or close-workflow tool causes final output (summary, actions, learnings, and feedback) to be persisted.
+- A delivered event causes final output (summary, actions, learnings, and feedback) to be persisted.
 - Provider, missing-key, and invalid-response failures are recorded after bounded activity retries; the workflow stays open and can retry on a later wake.
 - The `NoopWorkflow` remains registered as a Temporal wiring check.
 
 The API key is passed only to the worker using `GROQ_API_KEY`; the configurable model defaults to `openai/gpt-oss-20b`. Groq structured output uses best-effort schema mode and is still validated locally; provider errors or schema violations can fail an invocation and are surfaced in the timeline/logs.
 
-The backend suite passes in the API container (**27 passed**, one Starlette deprecation warning). A live synthetic order has completed the start → delivered event → final output path through PostgreSQL, Temporal, the worker, and Groq. The operator console has been smoke-tested against the running services. The reproducible walkthrough is in [help.md](help.md); current verification notes and remaining scope are in [live.md](live.md).
+The latest backend suite passes (**29 passed**, one Starlette deprecation warning). The frontend lint and production build pass. A live synthetic order has completed the start → delivered event → final output path through PostgreSQL, Temporal, the worker, and Groq. The operator console has been smoke-tested against the running services. RAGAS has been wired to three synthetic cases, but its live scores are partial because Groq rate limits blocked most evaluator calls; see [live.md](live.md) for exact results and remaining scope. Manual test steps are in [help.md](help.md); a walkthrough video remains to be recorded.
 
 ### POC scope intentionally not implemented
 

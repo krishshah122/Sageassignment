@@ -6,6 +6,8 @@ Chosen decisions:
 
 - Infra: local Docker Compose for Temporal, PostgreSQL, FastAPI, and Next.js.
 - LLM: Groq free-tier API for agent inference.
+- Agent tools: exactly three are enabled by the operator's explicit scope choice: customer message, internal note, and mark for human review. This intentionally overrides FR-09's assignment minimum of four; do not add or remove tools without approval.
+- Quality evaluation: optional isolated RAGAS evaluation over synthetic scenarios; this is an evaluator, not a retrieval system.
 
 This file is the classified requirements analysis. Product code is not part of this document.
 
@@ -23,7 +25,7 @@ This file is the classified requirements analysis. Product code is not part of t
 - **FR-06** Sleep until a scheduled time; wake on incoming signals; decide if an event is important enough to wake the main agent (lightweight classifier or policy is acceptable).
 - **FR-07** Persist per run: timeline of important events/actions, compact memory summary, current workflow status, sleep state or next wake-up time.
 - **FR-08** Simple context compaction (summarize older history, keep important events, rolling summary). Sophisticated memory is not required.
-- **FR-09** At least 4 agent tools. Assignment examples: send customer message, create internal note, escalate issue, mark order for review, schedule next wake-up, close workflow. Tools may be mocked.
+- **FR-09** Assignment baseline: at least 4 agent tools. Assignment examples: send customer message, create internal note, escalate issue, mark order for review, schedule next wake-up, close workflow. Tools may be mocked. **Approved implementation deviation:** current operator decision limits the catalog to three (customer message, internal note, mark for human review); retain this gap in submission notes unless the operator approves changing it.
 - **FR-10** Event generator/simulator that can send events into a run. Possible types: `order_created`, `payment_confirmed`, `payment_failed`, `shipment_created`, `shipment_delayed`, `delivered`, `refund_requested`, `customer_message_received`, `no_update_for_n_hours`.
 - **FR-11** UI: configure supervisor template; start a run; view active and completed runs; inspect timeline and action history; inspect memory summary; inject events; add extra instructions to a live run; interrupt, pause, resume, or terminate a run. UI must be functional, not polished.
 - **FR-12** Supervisor config fields: name, base instruction, available tools; optional default wake-up behavior, optional model/config, optional wake aggressiveness. Hardcoded templates are acceptable.
@@ -165,7 +167,7 @@ Pause vs interrupt vs terminate vs resume semantics; terminal state machine; JSO
 - Pause: stop agent inference and ignore wake-ups until resume; still record events.
 - Interrupt: signal the workflow to run the main agent now.
 - Terminate: Temporal-terminate; mark run terminated; skip final agent output unless already written.
-- Close-workflow tool and `delivered` are terminal and trigger final output.
+- `delivered` triggers final output. The close-workflow tool was removed with the operator-approved three-tool limit. Manual termination is a hard stop and skips final output.
 - Short configurable timers for the walkthrough.
 - Classifier: simple policy first (delay/fail/refund/customer_message wake immediately; others may wait).
 
